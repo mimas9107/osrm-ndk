@@ -83,8 +83,9 @@ osrm-ndk/
 
 | Phase | 目標 | 狀態 |
 |-------|------|------|
-| **0** | NDK 交叉編譯 OSRM binary | ✅ v5.27.1 for ARM64 |
-| **0a** | 手機端機車圖資編譯 (MLD) | ✅ 3.99M edges, 4-level partition |
-| **1** | Android Service + JNI bridge | ⬜ 待開發 |
-| **2** | 離線圖資下載管理 | ⬜ 待開發 |
-| **3** | WebView 整合 myosm 前端 | ⬜ 待開發 |
+| **0** | NDK 交叉編譯 OSRM binary | [X] v5.27.1 for ARM64 |
+| **0a** | 手機端機車圖資編譯 (MLD) | [X] 3.99M edges, 4-level partition |
+| **1s** | Phase 1 Simplified (ProcessBuilder) | [X] 自含式 APK + 儀表板 |
+| **1** | Android Service + JNI bridge | [ ] 待開發 |
+| **2** | 離線圖資下載管理 | [ ] 待開發 |
+| **3** | WebView 整合 myosm 前端 | [ ] 待開發 |

@@ -1,3 +1,13 @@
+---
+name:          "DISCUSSION.md"
+description:   "MyOSM 離線手機 APP 轉型架構評估與討論"
+created_date:  "2026/05/27 12:00:00"
+modified_date: "2026/05/27 16:50:00"
+project_version: "0.3.0"
+document_version: "1.1.0"
+agent_sign: ['opencode/current_agent']
+---
+
 # MyOSM 離線手機 APP 轉型架構評估與討論
 
 此文件紀錄了將 MyOSM (基於 OSRM 與 Leaflet 的台灣機車多點配送系統) 從 Web 網頁應用轉型為**完全離線的手機 APP (iOS/Android)** 的技術評估與實作策略。
@@ -48,23 +58,25 @@ OSRM 為了追求極致的計算速度，會將大量路網資料載入記憶體
 
 為了驗證交叉編譯可行性與記憶體消耗，建議分階段進行：
 
-#### 階段一：Termux 快速驗證 (免寫 Android 程式)
+#### 階段一：Termux 快速驗證 [X] → 跳過（直接使用 NDK 交叉編譯）
 1. 在 Android 手機安裝 Termux。
 2. 安裝必要的編譯工具 (`clang`, `cmake`, `boost` 等)。
 3. 在手機上直接編譯 OSRM 原始碼，產出 `osrm-routed`。
 4. 放入預先建置好的台灣 `.osrm` 資料 (MLD)。
 5. 執行 `osrm-routed --algorithm mld taiwan.osrm`，觀察是否能成功啟動並監控記憶體消耗。
+> 最終選擇跳過 Termux，直接以 NDK 交叉編譯產出 v5.27.1 的 `osrm-routed` binary。
 
-#### 階段二：Android NDK 最小化測試
+#### 階段二：Android NDK 最小化測試 [X] → 改採 Phase 1s (ProcessBuilder)
 1. 建立最小化的 Android NDK 專案。
 2. 配置 CMake 進行 ARM64 交叉編譯 (處理 Boost, TBB 等依賴)。
 3. 撰寫簡易 JNI 函式，使用 `#include <osrm/osrm.hpp>` 初始化引擎並進行單次路徑規劃。
 4. 透過簡單的 Android 按鈕觸發，測試在作業系統限制下是否能順利算出路線且不閃退。
+> 最終改以 ProcessBuilder 啟動獨立 binary (Phase 1s)，跳過 JNI bridge 的 C++ 相容性問題。
 
 ### 後續移植路徑
-若 PoC 成功證明記憶體可負荷，後續步驟為：
-1. 完善 Native Bridge 介面。
-2. 實作離線圖塊下載與渲染 (MBTiles/MapLibre)。
-3. 將 Web 端的多點配送 (TSP) 互動邏輯移植為 APP UI。
+
+1. [/] 完善 Bridge 介面 → 以 ProcessBuilder 替換 JNI bridge (Phase 1s 已完成)
+2. [ ] 實作離線圖塊下載與渲染 (MBTiles/MapLibre) → Phase 2
+3. [ ] 將 Web 端的多點配送 (TSP) 互動邏輯移植為 APP UI → Phase 3
 
 > **替代方案備忘**：若 PoC 發現 OSRM 在手機上過於耗用資源，可評估轉向其他對行動裝置與記憶體更友善的開源引擎，如 **Valhalla** (C++) 或 **GraphHopper** (Java)。

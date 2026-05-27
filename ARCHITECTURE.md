@@ -2,9 +2,9 @@
 name:          "ARCHITECTURE.md"
 description:   "OSRM Android NDK — 完整架構規劃與開發路徑"
 created_date:  "2026/05/27 12:00:00"
-modified_date: "2026/05/27 15:00:00"
-project_version: "0.2.0"
-document_version: "1.1.0"
+modified_date: "2026/05/27 16:50:00"
+project_version: "0.3.0"
+document_version: "1.2.0"
 agent_sign: ['opencode/current_agent']
 ---
 
@@ -114,7 +114,7 @@ agent_sign: ['opencode/current_agent']
 
 ## 四、Phases 開發時程
 
-### Phase 0：環境建置與驗證 (Week 1)
+### Phase 0：環境建置與驗證 [X]
 
 ```
 [目標]   C 驗證 Android NDK 能否成功編譯 libosrm
@@ -126,7 +126,7 @@ agent_sign: ['opencode/current_agent']
   4. 記錄記憶體與 startup time 數據
 ```
 
-### Phase 0a：手機端機車圖資編譯 (里程碑 v0.2.0)
+### Phase 0a：手機端機車圖資編譯 [X]
 
 ```
 [目標]   在手機端以 motorcycle.lua profile 完成 MLD 圖資編譯
@@ -147,7 +147,27 @@ agent_sign: ['opencode/current_agent']
   - API latency: ~21ms (9.3km route)
 ```
 
-### Phase 1：Java/Native Bridge (Week 2)
+### Phase 1s：自含式 APK + 儀表板 (v0.3.0) [X]
+
+```
+[目標]   以 ProcessBuilder 啟動 osrm-routed，WebView 監控儀表板
+[驗證標準] APK 安裝後可在手機端啟動/停止/設定 OSRM 引擎
+[步驟]
+  1. 將 osrm-routed binary 打包至 jniLibs (PkgManager 自動展開)
+  2. 實作 OsrmService (Foreground Service + ProcessBuilder)
+  3. 實作 MonitorServer (port 5001, JSON API + 靜態檔服務)
+  4. 開發 WebView 儀表板 (HTML/CSS/JS)
+  5. 實作設定持久化 (SharedPreferences)
+  6. 開發 CLI 工具 (osrm-cli.sh)
+[關鍵修正]
+  - SELinux noexec: 使用 jniLibs 而非 getFilesDir()
+  - WebView CORS: 同源 http://127.0.0.1:5001/ 載入
+  - 停止後自動重啟: 改為一次性 maybeAutoStart()
+  - 按鈕無反應: 補上 showMsg()
+  - MonitorServer EADDRINUSE: 防重複啟動保護
+```
+
+### Phase 1：Java/Native Bridge (JNI) [ ]
 
 ```
 [目標] 建立 Android 專案，可透過 JNI 啟動/停止 OSRM
@@ -159,7 +179,7 @@ agent_sign: ['opencode/current_agent']
   4. 驗證 HTTP API 正確性 (對比 Docker 版輸出)
 ```
 
-### Phase 2：離線圖資管理 (Week 3)
+### Phase 2：離線圖資管理 [ ]
 
 ```
 [目標] 支援 OSRM data 的首次下載與更新
@@ -171,16 +191,19 @@ agent_sign: ['opencode/current_agent']
   4. 支援 data 放在 external storage 以節省 internal space
 ```
 
-### Phase 3：WebView 整合與 UI (Week 4)
+### Phase 3：WebView 整合前端 UI [/]
 
 ```
-[目標] 將 myosm 前端移植到 Android WebView，或使用 MapLibre Native 重新實作
+[目標] 整合地圖顯示、路線規劃互動介面
 [驗證標準] 可在手機上完成完整的多點配送路線規劃流程
 [步驟]
   1. 將 myosm/frontend 打包至 assets/，透過 WebView 載入
   2. 調整 WebView 設定 (JavaScript enabled, file access)
   3. 實作離線圖磚支援 (mbtiles 或 vector tiles)
   4. 效能調校與低記憶體情境處理
+[進度]
+  - WebView 儀表板已完成（監控用途，非地圖前端）
+  - 地圖前端尚待整合
 ```
 
 ---
