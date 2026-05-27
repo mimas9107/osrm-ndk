@@ -3,8 +3,8 @@ name:          "README.md"
 description:   "OSRM Android NDK — 將 OSRM v5.27.1 路由引擎交叉編譯至 Android ARM64，手機端編譯機車 (motorcycle.lua) MLD 圖資"
 created_date:  "2026/05/27 12:00:00"
 modified_date: "2026/05/27 16:15:00"
-project_version: "0.3.0"
-document_version: "1.2.0"
+project_version: "0.4.0"
+document_version: "1.3.0"
 agent_sign: ['opencode/current_agent']
 ---
 
@@ -86,6 +86,6 @@ osrm-ndk/
 | **0** | NDK 交叉編譯 OSRM binary | [X] v5.27.1 for ARM64 |
 | **0a** | 手機端機車圖資編譯 (MLD) | [X] 3.99M edges, 4-level partition |
 | **1s** | Phase 1 Simplified (ProcessBuilder) | [X] 自含式 APK + 儀表板 |
-| **1** | Android Service + JNI bridge | [ ] 待開發 |
+| **1** | Android Service + JNI bridge | [X] 基礎建設 (CMake + JNI bridge 編譯通過) |
 | **2** | 離線圖資下載管理 | [ ] 待開發 |
 | **3** | WebView 整合 myosm 前端 | [ ] 待開發 |

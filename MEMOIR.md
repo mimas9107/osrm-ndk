@@ -2,9 +2,9 @@
 name:             "MEMOIR.md"
 description:      "OSRM Android NDK — 自含式 APK 路由服務完整工程回顧"
 created_date:     "2026/05/27 15:00:00"
-modified_date:    "2026/05/27 16:45:00"
-project_version:  "0.3.0"
-document_version: "1.2.0"
+modified_date:    "2026/05/27 17:20:00"
+project_version:  "0.4.0"
+document_version: "1.3.0"
 agent_sign: ['opencode/current_agent']
 ---
 
@@ -601,6 +601,145 @@ WebView 從 `file:///android_asset/www/dashboard.html` 載入內容，XHR 到 `h
 5. **JS polling 副作用**: 輪詢邏輯中的條件判斷（如自動啟動）若放在 `updateStatus()` 中，每輪都會觸發。直接副作用應只觸發一次。
 
 ### 10.7 最終結果
+
+| 量測 | 數值 |
+|------|------|
+| APK 大小 | 4.3 MB |
+| 首次啟動至監控 API 就緒 | ~1.5s |
+| 引擎啟動至路由就緒 | ~1s |
+| 路由回應 (9.3km) | ~12ms |
+| 儀表板輪詢間隔 | 3s |
+| WebView 重試上限 | 20 次 (每次 1s) |
+
+---
+
+## 11. Phase 1 Standard — JNI Bridge CMake 編譯障礙
+
+### 11.1 背景
+
+Phase 1 Standard 將 ProcessBuilder 模式升級為 JNI bridge：`libosrm_android.so` 直接載入 OSRM engine，在 native 層嵌入 civetweb HTTP server。CMake 編譯過程中遇到一系列障礙，記錄如下。
+
+### 11.2 障礙與解決
+
+#### 11.2.1 Civetweb 1.15 callback 簽名
+
+```
+錯誤: assigning to 'int (*)(struct mg_connection *)' from incompatible
+       type 'int (struct mg_connection *, void *)'
+```
+
+```cpp
+// 舊程式碼 (假設新版 civetweb):
+callbacks.begin_request = route_handler;
+static int route_handler(struct mg_connection* conn, void* cbdata);
+
+// 事實: civetweb 1.15 的 begin_request 只接受 1 個參數
+int (*begin_request)(struct mg_connection *);
+```
+
+**根因**: OSRM v5.27 bundle 的 civetweb 1.15 與後續版本 API 不同。新版 civetweb 的 `begin_request` 可有 `void*` 第二參數，但 1.15 版沒有。
+
+**解決**: callback 改為 1-arg signature，透過 `mg_request_info` 取得 user data：
+```cpp
+static int route_handler(struct mg_connection* conn) {
+    const auto* ri = mg_get_request_info(conn);
+    auto* server = static_cast<HttpServer*>(ri->user_data);  // mg_start() 傳入的 this
+    ...
+}
+```
+
+#### 11.2.2 `osrm::util::Alias` 無隱含建構子
+
+```
+錯誤: no matching conversion for functional-style cast from 'double' to
+       'osrm::util::FloatLongitude'
+```
+
+`FloatLongitude` / `FloatLatitude` 是 `Alias<double, Tag>` 強型別包裝，`Alias` **沒有**接受原始型別的建構子 — 只有 public member `__value` 可聚合初始化。
+
+```cpp
+// ❌ 錯誤：Alias 沒有 Alias(double) 建構子
+coords.emplace_back(osrm::util::FloatLongitude(lon), ...);
+
+// ✅ 正確：使用聚合初始化
+coords.emplace_back(osrm::util::FloatLongitude{lon}, ...);
+```
+
+#### 11.2.3 `osrm::Algorithm` 命名空間
+
+```
+錯誤: no member named 'Algorithm' in namespace 'osrm'
+```
+
+`Algorithm` 列舉定義在 `osrm::EngineConfig` 內部，不是 `osrm` 直接子成員。
+
+```cpp
+config.algorithm = osrm::EngineConfig::Algorithm::MLD;  // ✅ 正確
+// config.algorithm = osrm::Algorithm::MLD;              // ❌ 不存在
+```
+
+#### 11.2.4 `util::json::render` 雙引數
+
+```
+錯誤: candidate function not viable: requires 2 arguments, but 1 was provided
+```
+
+`render()` 的 signature 是 `render(std::string& out, const Object& object)` — 將 JSON 寫入指定的 string，而非回傳。
+
+```cpp
+std::string body;
+osrm::util::json::render(body, json_result);  // ✅ body 被填入 JSON
+```
+
+#### 11.2.5 fmt 9.1 標頭與符號遺失
+
+```
+fatal error: 'fmt/compile.h' file not found
+→ 加入 third_party/fmt-9.1.0/include 至 include_directories
+
+undefined symbol: fmt::v9::detail::decimal_point_impl<char>(...)
+→ 加入 third_party/fmt-9.1.0/src/format.cc 至 SOURCES
+```
+
+`json_renderer.hpp` 引入 `<fmt/compile.h>` 格式化浮點數。OSRM 主庫 (`libosrm.a`) 未包含 fmt 符號（可能是 header-only 或 strip 掉），需自行編譯 fmt。
+
+#### 11.2.6 Java 25 與 Gradle 8.9 不相容
+
+```
+FAILURE: Build failed with an exception.
+25.0.3
+```
+
+系統預設 JDK 為 Java 25.0.3 (Debian 13)，Gradle 8.9 無法正確解析此版本，僅輸出 `25.0.3` 作為錯誤訊息。需使用 `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64` 指定 Java 21。
+
+#### 11.2.7 ABI 未指定導致連結失敗
+
+```
+ld.lld: error: libosrm.a(hint.cpp.o) is incompatible with armelf_linux_eabi
+```
+
+Gradle 預設同時為 `armeabi-v7a` (32-bit) 與 `arm64-v8a` (64-bit) 編譯，但 OSRM 靜態庫僅有 arm64-v8a 版本。需限定 ABI：
+
+```kotlin
+defaultConfig { ndk { abiFilters += "arm64-v8a" } }
+```
+
+### 11.3 最終編譯產出
+
+```
+app-debug.apk
+  ├── lib/arm64-v8a/libosrm_android.so   3.4 MB  ← JNI bridge (新增)
+  └── lib/arm64-v8a/libosrm_routed.so    3.0 MB  ← ProcessBuilder binary (既有)
+
+APK 總大小: 6.6 MB
+```
+
+### 11.4 教訓
+
+1. **Civetweb API 版本敏感**：OSRM 捆綁的 civetweb 1.15 與後續版本 callback 簽名不同，不能直接參考 upstream 範例。
+2. **強型別 alias 需用聚合初始化**：OSRM 的 `Alias<T, Tag>` 採用 C 風格 struct 設計，無建構子，只能用 `{value}`。
+3. **fmt 非 header-only**：OSRM 的 `json_renderer` 依賴 fmt 實作檔，連結時需提供 `format.cc`。
+4. **Java 版本兼容性**：Gradle 8.9 不支援 Java 25，需確保 `JAVA_HOME` 指向 Java 21。
 
 | 量測 | 數值 |
 |------|------|

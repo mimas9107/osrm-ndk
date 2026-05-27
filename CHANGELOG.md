@@ -2,13 +2,44 @@
 name:          "CHANGELOG.md"
 description:   "OSRM Android NDK 專案變更記錄，為版本號的單一事實來源 (Source of Truth)"
 created_date:  "2026/05/27 12:00:00"
-modified_date: "2026/05/27 16:40:00"
-project_version: "0.3.0"
-document_version: "1.2.0"
+modified_date: "2026/05/27 17:20:00"
+project_version: "0.4.0"
+document_version: "1.3.0"
 agent_sign: ['opencode/current_agent']
 ---
 
 # CHANGELOG
+
+## 0.4.0 — 2026/05/27
+
+### Phase 1 Standard — JNI Bridge 基礎建設 🏗️
+
+#### Added
+- **`libosrm_android.so`**: 以 JNI bridge 直接載入 OSRM engine 的 native shared library，取代 ProcessBuilder 獨立行程模式
+- **`http_server.cpp` 自含 URL parser**: 解析 `/route/v1/{profile}/{lon,lat;...}?options` 格式，直接設定 RouteParameters 欄位
+- **雙模式支援**: `OsrmService.java` 可透過 `use_native` 設定切換 JNI bridge (`OsrmNative.start/stop/isRunning`) 或既有 ProcessBuilder
+
+#### Changed
+- **`http_server.cpp`**: 全部重寫 — 移除不相容的 `FlatbuffersFormat`/`set_from_query`/`ToJson()`，改用 `json::Object` + `util::json::render()`；civetweb 1.15 callback 改為 1-arg signature，`user_data` 從 `mg_request_info` 取得
+- **`osrm_bridge.cpp`**: 加入 graceful shutdown timeout (5s)、Java exception 拋出、auto-stop-before-restart 保護
+- **`OsrmService.java`**: 拆出 `monitorNativeHealth`/`monitorProcessHealth`，native 模式讀 `/proc/self/status`，`getStatusJson` 新增 `native_running`、`use_native` 欄位
+- **`CMakeLists.txt`**: 加入 fmt 9.1 include path + `format.cc` 原始檔
+- **`build.gradle.kts`**: 啟用 CMake externalNativeBuild，限制 ABI 為 `arm64-v8a`
+
+#### Fixed
+- **Civetweb 1.15 callback 簽名**: `begin_request` 僅接受 1 個引數 (`mg_connection*`)，無法直接傳 `cbdata`；改由 `mg_request_info->user_data` 取得
+- **`osrm::Alias` 無隱含建構子**: `FloatLongitude(lon)` 編譯錯誤，需用聚合初始化 `FloatLongitude{lon}`
+- **`osrm::Algorithm` 命名空間**: `osrm::Algorithm::MLD` 不存在，正確為 `osrm::EngineConfig::Algorithm::MLD`
+- **`util::json::render` 需 2 引數**: `render(json_object)` 錯誤，需 `render(string&, object)`
+- **fmt 符號未定義**: `json_renderer.hpp` 依賴 `<fmt/compile.h>`，需加入 `third_party/fmt-9.1.0/include` 並編譯 `format.cc`
+- **Java 25 與 Gradle 8.9 不相容**: Java 25.0.3 觸發 Gradle 異常錯誤訊息，需使用 Java 21
+- **ABI 未指定**: Gradle 預設 `armeabi-v7a`，與 OSRM 的 `arm64-v8a` 靜態庫不相容；加入 `abiFilters += "arm64-v8a"`
+
+#### Technical Details
+- `libosrm_android.so`: 3.4 MB (ARM64, 靜態連結 OSRM + fmt + civetweb)
+- APK 大小: 6.6 MB (含 `libosrm_android.so` + `libosrm_routed.so`)
+- 編譯工具: NDK r30-beta1, CMake 3.22.1, Gradle 8.9, Java 21
+- 路由埠: 5747 (JNI 模式) / 5000 (ProcessBuilder 模式)
 
 ## 0.3.0 — 2026/05/27
 
