@@ -4,6 +4,7 @@ deps/
 *.o
 *.a
 *.so
+.cxx/
 
 # ── OSRM binary data (generated, too large for git) ─────────────────
 osrm_data_v5271/
