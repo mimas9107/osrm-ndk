@@ -13,6 +13,7 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.3.0"
+        ndk { abiFilters += "arm64-v8a" }
     }
 
     buildTypes {
@@ -30,13 +31,13 @@ android {
         }
     }
 
-    // JNI .so build (Phase 1 Standard): uncomment after C++ code is updated for v5.27 API
-    // externalNativeBuild {
-    //     cmake {
-    //         path = file("src/main/jni/CMakeLists.txt")
-    //         version = "3.22.1"
-    //     }
-    // }
+    // JNI .so build (Phase 1 Standard)
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/jni/CMakeLists.txt")
+            version = "3.22.1"
+        }
+    }
 }
 
 configurations.all {

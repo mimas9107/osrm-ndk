@@ -73,8 +73,8 @@ static bool parse_coordinates(const std::string& coord_str,
         if (comma == std::string::npos) return false;
         double lon = std::atof(pair.substr(0, comma).c_str());
         double lat = std::atof(pair.substr(comma + 1).c_str());
-        coords.emplace_back(osrm::util::FloatLongitude(lon),
-                            osrm::util::FloatLatitude(lat));
+        coords.emplace_back(osrm::util::FloatLongitude{lon},
+                            osrm::util::FloatLatitude{lat});
     }
     return !coords.empty();
 }
@@ -150,18 +150,23 @@ static void send_error(struct mg_connection* conn, int status,
 }
 
 // ---------------------------------------------------------------------------
-// Civetweb callback
+// Civetweb callback (1-arg signature for civetweb 1.15)
 // ---------------------------------------------------------------------------
 
-static int route_handler(struct mg_connection* conn, void* cbdata) {
-    auto* server = static_cast<HttpServer*>(cbdata);
+static int route_handler(struct mg_connection* conn) {
+    const struct mg_request_info* ri = mg_get_request_info(conn);
+    if (!ri || !ri->user_data) {
+        send_error(conn, 503, "ServiceUnavailable", "OSRM engine not initialized");
+        return 200;
+    }
+
+    auto* server = static_cast<HttpServer*>(ri->user_data);
     if (!server || !server->engine()) {
         send_error(conn, 503, "ServiceUnavailable", "OSRM engine not initialized");
         return 200;
     }
 
-    const struct mg_request_info* ri = mg_get_request_info(conn);
-    std::string uri = ri ? (ri->local_uri_raw ? ri->local_uri_raw : ri->local_uri) : "/";
+    std::string uri = ri->local_uri_raw ? ri->local_uri_raw : (ri->local_uri ? ri->local_uri : "/");
 
     if (uri == "/" || uri == "/health") {
         send_json(conn, 200, "{\"status\":\"healthy\"}");
@@ -219,9 +224,10 @@ static int route_handler(struct mg_connection* conn, void* cbdata) {
             return 200;
         }
 
+        std::string body;
         auto status = server->engine()->Route(params, json_result);
-        send_json(conn, status == osrm::Status::Ok ? 200 : 400,
-                  osrm::util::json::render(json_result));
+        osrm::util::json::render(body, json_result);
+        send_json(conn, status == osrm::Status::Ok ? 200 : 400, body);
 
     } else if (service == "trip") {
         osrm::TripParameters params;
@@ -235,9 +241,10 @@ static int route_handler(struct mg_connection* conn, void* cbdata) {
         params.generate_hints = false;
         params.skip_waypoints = true;
 
+        std::string body;
         auto status = server->engine()->Trip(params, json_result);
-        send_json(conn, status == osrm::Status::Ok ? 200 : 400,
-                  osrm::util::json::render(json_result));
+        osrm::util::json::render(body, json_result);
+        send_json(conn, status == osrm::Status::Ok ? 200 : 400, body);
 
     } else if (service == "table") {
         osrm::TableParameters params;
@@ -245,9 +252,10 @@ static int route_handler(struct mg_connection* conn, void* cbdata) {
         params.generate_hints = false;
         params.skip_waypoints = true;
 
+        std::string body;
         auto status = server->engine()->Table(params, json_result);
-        send_json(conn, status == osrm::Status::Ok ? 200 : 400,
-                  osrm::util::json::render(json_result));
+        osrm::util::json::render(body, json_result);
+        send_json(conn, status == osrm::Status::Ok ? 200 : 400, body);
 
     } else if (service == "nearest") {
         osrm::NearestParameters params;
@@ -256,9 +264,10 @@ static int route_handler(struct mg_connection* conn, void* cbdata) {
         params.generate_hints = false;
         params.skip_waypoints = true;
 
+        std::string body;
         auto status = server->engine()->Nearest(params, json_result);
-        send_json(conn, status == osrm::Status::Ok ? 200 : 400,
-                  osrm::util::json::render(json_result));
+        osrm::util::json::render(body, json_result);
+        send_json(conn, status == osrm::Status::Ok ? 200 : 400, body);
 
     } else if (service == "match") {
         osrm::MatchParameters params;
@@ -271,9 +280,10 @@ static int route_handler(struct mg_connection* conn, void* cbdata) {
         params.generate_hints = false;
         params.skip_waypoints = true;
 
+        std::string body;
         auto status = server->engine()->Match(params, json_result);
-        send_json(conn, status == osrm::Status::Ok ? 200 : 400,
-                  osrm::util::json::render(json_result));
+        osrm::util::json::render(body, json_result);
+        send_json(conn, status == osrm::Status::Ok ? 200 : 400, body);
 
     } else {
         send_error(conn, 404, "NotFound", "Unknown service: " + service);
@@ -295,7 +305,7 @@ bool HttpServer::start() {
     osrm::EngineConfig config;
     config.storage_config = {data_path_};
     config.use_shared_memory = false;
-    config.algorithm = osrm::Algorithm::MLD;
+    config.algorithm = osrm::EngineConfig::Algorithm::MLD;
 
     engine_ = std::make_unique<osrm::OSRM>(config);
 

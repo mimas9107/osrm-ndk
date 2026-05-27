@@ -36,9 +36,11 @@ set(DEPS_LIBS
 )
 
 # ---- Source files ----
+set(FMT_SRC_DIR "${OSRM_SOURCE_DIR}/third_party/fmt-9.1.0/src")
 set(SOURCES
   osrm_bridge.cpp
   http_server.cpp
+  "${FMT_SRC_DIR}/format.cc"
 )
 
 add_library(osrm_android SHARED ${SOURCES})
@@ -47,6 +49,7 @@ target_include_directories(osrm_android PRIVATE
   ${OSRM_INCLUDE_DIR}
   ${OSRM_PREFIX}/android-24/arm64-v8a/include
   ${OSRM_SOURCE_DIR}/include
+  ${OSRM_SOURCE_DIR}/third_party/fmt-9.1.0/include
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
