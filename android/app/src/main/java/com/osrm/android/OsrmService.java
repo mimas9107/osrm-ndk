@@ -58,19 +58,20 @@ public class OsrmService extends Service {
         createNotificationChannel();
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         loadConfig();
+        resolveBinaryPath();
+    }
 
-        if (!configUseNative) {
-            // Locate binary: native lib dir → assets extraction → deploy-managed
-            String libDir = getApplicationInfo().nativeLibraryDir;
-            String nativeBin = libDir + "/libosrm_routed.so";
-            File nativeFile = new File(nativeBin);
-            if (nativeFile.exists()) {
-                binaryPath = nativeBin;
-            } else {
-                File dataBin = new File(getFilesDir().getParentFile(), "osrm-routed");
-                if (!dataBin.exists()) extractBinary(dataBin);
-                binaryPath = dataBin.getAbsolutePath();
-            }
+    private void resolveBinaryPath() {
+        // Locate binary: native lib dir → assets extraction → deploy-managed
+        String libDir = getApplicationInfo().nativeLibraryDir;
+        String nativeBin = libDir + "/libosrm_routed.so";
+        File nativeFile = new File(nativeBin);
+        if (nativeFile.exists()) {
+            binaryPath = nativeBin;
+        } else {
+            File dataBin = new File(getFilesDir().getParentFile(), "osrm-routed");
+            if (!dataBin.exists()) extractBinary(dataBin);
+            binaryPath = dataBin.getAbsolutePath();
         }
     }
 
@@ -136,8 +137,13 @@ public class OsrmService extends Service {
                 .apply();
 
             boolean runningNow = "running".equals(engineStatus) || "healthy".equals(engineStatus);
-            if (runningNow) restartEngine();
-            else if (configAutoStart) startEngine();
+            if (runningNow) {
+                resolveBinaryPath();
+                restartEngine();
+            } else if (configAutoStart) {
+                resolveBinaryPath();
+                startEngine();
+            }
             return true;
         } catch (Exception e) {
             Log.e(TAG, "updateConfig error", e);
@@ -264,26 +270,24 @@ public class OsrmService extends Service {
     public void stopEngine() {
         synchronized (this) {
             engineStopRequested = true;
-            if (configUseNative) {
-                addLog("INFO", "Stopping native engine");
-                OsrmNative.stop();
-                enginePid = -1;
-                engineStartTime = 0;
-                engineStatus = "stopped";
-                addLog("INFO", "Native engine stopped");
-                updateNotification("OSRM 引擎已停止");
-            } else if (engineProcess != null) {
+            // Always kill both ProcessBuilder and native engines to handle mode switches
+            if (engineProcess != null) {
                 addLog("INFO", "Stopping engine PID=" + enginePid);
                 engineProcess.destroy();
                 try { engineProcess.waitFor(5000, java.util.concurrent.TimeUnit.MILLISECONDS); } catch (Exception ignored) {}
                 if (engineProcess.isAlive()) engineProcess.destroyForcibly();
                 engineProcess = null;
-                enginePid = -1;
-                engineStartTime = 0;
-                engineStatus = "stopped";
-                addLog("INFO", "Engine stopped");
-                updateNotification("OSRM 引擎已停止");
             }
+            OsrmNative.stop();
+            enginePid = -1;
+            engineStartTime = 0;
+            engineStatus = "stopped";
+            if (configUseNative) {
+                addLog("INFO", "Native engine stopped");
+            } else {
+                addLog("INFO", "Engine stopped");
+            }
+            updateNotification("OSRM 引擎已停止");
         }
     }
 
@@ -338,6 +342,10 @@ public class OsrmService extends Service {
         while ("running".equals(engineStatus) || "healthy".equals(engineStatus)) {
             try { Thread.sleep(5000); } catch (Exception e) { break; }
             synchronized (this) {
+                // Exit if we're no longer in native mode
+                if (!configUseNative) {
+                    break;
+                }
                 if (!OsrmNative.isRunning()) {
                     if (!engineStopRequested) {
                         engineStatus = "crashed";
@@ -417,6 +425,10 @@ public class OsrmService extends Service {
         while ("running".equals(engineStatus) || "healthy".equals(engineStatus)) {
             try { Thread.sleep(5000); } catch (Exception e) { break; }
             synchronized (this) {
+                // Exit if we're no longer in ProcessBuilder mode
+                if (configUseNative) {
+                    break;
+                }
                 if (engineProcess == null || !engineProcess.isAlive()) {
                     if (!engineStopRequested) engineStatus = "crashed";
                     break;
