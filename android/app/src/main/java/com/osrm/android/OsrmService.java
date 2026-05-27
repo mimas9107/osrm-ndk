@@ -34,6 +34,7 @@ public class OsrmService extends Service {
     private String configDataDir;
     private boolean configAutoStart = true;
     private boolean configAutoRestart = true;
+    private boolean configUseNative = false;
 
     private String binaryPath;
     private Process engineProcess;
@@ -49,6 +50,7 @@ public class OsrmService extends Service {
 
     private MonitorServer monitorServer;
     private Thread engineReaderThread;
+    private Thread healthThread;
 
     @Override
     public void onCreate() {
@@ -57,17 +59,18 @@ public class OsrmService extends Service {
         prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         loadConfig();
 
-        // Locate binary: native lib dir → assets extraction → deploy-managed
-        String libDir = getApplicationInfo().nativeLibraryDir;
-        String nativeBin = libDir + "/libosrm_routed.so";
-        File nativeFile = new File(nativeBin);
-        if (nativeFile.exists()) {
-            binaryPath = nativeBin;
-        } else {
-            // Extract from assets to app data root (proven executable by testing)
-            File dataBin = new File(getFilesDir().getParentFile(), "osrm-routed");
-            if (!dataBin.exists()) extractBinary(dataBin);
-            binaryPath = dataBin.getAbsolutePath();
+        if (!configUseNative) {
+            // Locate binary: native lib dir → assets extraction → deploy-managed
+            String libDir = getApplicationInfo().nativeLibraryDir;
+            String nativeBin = libDir + "/libosrm_routed.so";
+            File nativeFile = new File(nativeBin);
+            if (nativeFile.exists()) {
+                binaryPath = nativeBin;
+            } else {
+                File dataBin = new File(getFilesDir().getParentFile(), "osrm-routed");
+                if (!dataBin.exists()) extractBinary(dataBin);
+                binaryPath = dataBin.getAbsolutePath();
+            }
         }
     }
 
@@ -100,6 +103,7 @@ public class OsrmService extends Service {
         configDataDir = prefs.getString("data_dir", null);
         configAutoStart = prefs.getBoolean("auto_start", true);
         configAutoRestart = prefs.getBoolean("auto_restart", true);
+        configUseNative = prefs.getBoolean("use_native", false);
         if (configDataDir == null || configDataDir.isEmpty()) {
             File ext = getExternalFilesDir(null);
             configDataDir = (ext != null ? ext : getFilesDir()) + "/osrm_data/";
@@ -118,6 +122,8 @@ public class OsrmService extends Service {
             if (ar != null) configAutoRestart = "true".equals(ar);
             String as = extractJsonString(json, "auto_start");
             if (as != null) configAutoStart = "true".equals(as);
+            String un = extractJsonString(json, "use_native");
+            if (un != null) configUseNative = "true".equals(un);
 
             prefs.edit()
                 .putString("bind_ip", configIp)
@@ -126,6 +132,7 @@ public class OsrmService extends Service {
                 .putString("data_dir", configDataDir)
                 .putBoolean("auto_start", configAutoStart)
                 .putBoolean("auto_restart", configAutoRestart)
+                .putBoolean("use_native", configUseNative)
                 .apply();
 
             boolean runningNow = "running".equals(engineStatus) || "healthy".equals(engineStatus);
@@ -143,6 +150,7 @@ public class OsrmService extends Service {
             + ",\"data_dir\":\"" + escape(configDataDir) + "\""
             + ",\"auto_restart\":" + configAutoRestart
             + ",\"auto_start\":" + configAutoStart
+            + ",\"use_native\":" + configUseNative
             + ",\"monitor_port\":" + configMonitorPort + "}";
     }
 
@@ -156,7 +164,11 @@ public class OsrmService extends Service {
 
     private void startEngineSync() {
         synchronized (this) {
-            if (engineProcess != null && engineProcess.isAlive()) {
+            if (!configUseNative && engineProcess != null && engineProcess.isAlive()) {
+                engineStatus = "running";
+                return;
+            }
+            if (configUseNative && OsrmNative.isRunning()) {
                 engineStatus = "running";
                 return;
             }
@@ -180,6 +192,35 @@ public class OsrmService extends Service {
 
             String osrmBase = props.getAbsolutePath();
             osrmBase = osrmBase.substring(0, osrmBase.lastIndexOf(".osrm.properties"));
+
+            if (configUseNative) {
+                try {
+                    addLog("INFO", "Starting native engine: " + osrmBase + " @ :" + configPort);
+                    boolean ok = OsrmNative.start(osrmBase, configPort);
+                    if (!ok) {
+                        addLog("ERROR", "Native engine start returned false");
+                        engineStatus = "stopped";
+                        updateNotification("啟動失敗");
+                        return;
+                    }
+                    engineStartTime = System.currentTimeMillis();
+                    enginePid = -2; // -2 = in-process native engine
+                    engineStatus = "running";
+                    addLog("INFO", "Native engine started @ :" + configPort);
+                    updateNotification("OSRM 運行中 (port " + configPort + ")");
+
+                    healthThread = new Thread(this::monitorNativeHealth);
+                    healthThread.setDaemon(true);
+                    healthThread.setName("native-health");
+                    healthThread.start();
+
+                } catch (Exception e) {
+                    addLog("ERROR", "Native engine start failed: " + e.getMessage());
+                    engineStatus = "stopped";
+                    updateNotification("啟動失敗");
+                }
+                return;
+            }
 
             try {
                 ProcessBuilder pb = new ProcessBuilder(
@@ -207,7 +248,10 @@ public class OsrmService extends Service {
                 engineReaderThread.setName("engine-reader");
                 engineReaderThread.start();
 
-                new Thread(this::monitorHealth).start();
+                healthThread = new Thread(this::monitorProcessHealth);
+                healthThread.setDaemon(true);
+                healthThread.setName("engine-health");
+                healthThread.start();
 
             } catch (Exception e) {
                 addLog("ERROR", "Engine start failed: " + e.getMessage());
@@ -220,7 +264,15 @@ public class OsrmService extends Service {
     public void stopEngine() {
         synchronized (this) {
             engineStopRequested = true;
-            if (engineProcess != null) {
+            if (configUseNative) {
+                addLog("INFO", "Stopping native engine");
+                OsrmNative.stop();
+                enginePid = -1;
+                engineStartTime = 0;
+                engineStatus = "stopped";
+                addLog("INFO", "Native engine stopped");
+                updateNotification("OSRM 引擎已停止");
+            } else if (engineProcess != null) {
                 addLog("INFO", "Stopping engine PID=" + enginePid);
                 engineProcess.destroy();
                 try { engineProcess.waitFor(5000, java.util.concurrent.TimeUnit.MILLISECONDS); } catch (Exception ignored) {}
@@ -280,7 +332,52 @@ public class OsrmService extends Service {
         }
     }
 
-    // ─── Engine output reader ────────────────────────────────────────
+    // ─── Native health monitor ────────────────────────────────────────
+
+    private void monitorNativeHealth() {
+        while ("running".equals(engineStatus) || "healthy".equals(engineStatus)) {
+            try { Thread.sleep(5000); } catch (Exception e) { break; }
+            synchronized (this) {
+                if (!OsrmNative.isRunning()) {
+                    if (!engineStopRequested) {
+                        engineStatus = "crashed";
+                        addLog("WARN", "Native engine stopped unexpectedly");
+                        updateNotification("引擎異常終止");
+                        if (configAutoRestart) {
+                            restartCount++;
+                            addLog("INFO", "Auto-restart #" + restartCount);
+                            updateNotification("重新啟動中 (#" + restartCount + ")");
+                            try { Thread.sleep(2000); } catch (Exception ignored) {}
+                            startEngine();
+                        } else {
+                            engineStartTime = 0;
+                        }
+                    }
+                    break;
+                }
+                updateSelfMemoryStats();
+                updateNotification("OSRM 運行中 (port " + configPort + " " + (lastMemoryKb / 1024) + "MB)");
+            }
+        }
+    }
+
+    private void updateSelfMemoryStats() {
+        try {
+            BufferedReader r = new BufferedReader(new InputStreamReader(
+                new FileInputStream("/proc/self/status")));
+            String line;
+            while ((line = r.readLine()) != null) {
+                if (line.startsWith("VmRSS:")) {
+                    String[] p = line.split("\\s+");
+                    if (p.length >= 2) lastMemoryKb = Long.parseLong(p[1]);
+                    break;
+                }
+            }
+            r.close();
+        } catch (Exception ignored) {}
+    }
+
+    // ─── Engine output reader (ProcessBuilder mode) ──────────────────
 
     private void readEngineOutput() {
         if (engineProcess == null) return;
@@ -314,9 +411,9 @@ public class OsrmService extends Service {
         }
     }
 
-    // ─── Health monitor ──────────────────────────────────────────────
+    // ─── Health monitor (ProcessBuilder mode) ────────────────────────
 
-    private void monitorHealth() {
+    private void monitorProcessHealth() {
         while ("running".equals(engineStatus) || "healthy".equals(engineStatus)) {
             try { Thread.sleep(5000); } catch (Exception e) { break; }
             synchronized (this) {
@@ -324,13 +421,13 @@ public class OsrmService extends Service {
                     if (!engineStopRequested) engineStatus = "crashed";
                     break;
                 }
-                updateMemoryStats();
+                updateProcessMemoryStats();
                 updateNotification("OSRM 運行中 (port " + configPort + " " + (lastMemoryKb / 1024) + "MB)");
             }
         }
     }
 
-    private void updateMemoryStats() {
+    private void updateProcessMemoryStats() {
         if (enginePid <= 0) return;
         try {
             BufferedReader r = new BufferedReader(new InputStreamReader(
@@ -351,14 +448,17 @@ public class OsrmService extends Service {
 
     public String getStatusJson() {
         long uptime = engineStartTime > 0 ? (System.currentTimeMillis() - engineStartTime) / 1000 : 0;
+        boolean binaryOk = configUseNative || new File(binaryPath != null ? binaryPath : "").exists();
         return "{"
             + "\"status\":\"" + engineStatus + "\""
+            + ",\"native_running\":" + (configUseNative && OsrmNative.isRunning())
             + ",\"pid\":" + enginePid
             + ",\"uptime_sec\":" + uptime
             + ",\"memory_kb\":" + lastMemoryKb
             + ",\"restart_count\":" + restartCount
             + ",\"config\":" + getConfigJson()
-            + ",\"binary_ok\":" + new File(binaryPath != null ? binaryPath : "").exists()
+            + ",\"use_native\":" + configUseNative
+            + ",\"binary_ok\":" + binaryOk
             + "}";
     }
 
