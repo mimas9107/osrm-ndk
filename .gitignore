@@ -15,6 +15,10 @@ osrm_data_v5271/
 # Setup: ln -s ../myosm myosm  (see README.md)
 myosm
 
+# ── Bundled OSRM binary (built from source; copy manually) ──────────
+# Build: ./scripts/build_osrm_android.sh && cp build_android/install/bin/osrm-routed android/app/src/main/assets/osrm-routed
+android/app/src/main/assets/osrm-routed
+
 # ── Android Studio / Gradle ─────────────────────────────────────────
 android/.gradle/
 android/build/
