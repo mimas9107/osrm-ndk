@@ -2,9 +2,7 @@
 #define OSRM_HTTP_SERVER_H
 
 #include <string>
-#include <thread>
 #include <atomic>
-#include <mutex>
 #include <memory>
 
 #include <osrm/osrm.hpp>
