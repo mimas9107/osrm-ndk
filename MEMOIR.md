@@ -712,7 +712,19 @@ FAILURE: Build failed with an exception.
 
 系統預設 JDK 為 Java 25.0.3 (Debian 13)，Gradle 8.9 無法正確解析此版本，僅輸出 `25.0.3` 作為錯誤訊息。需使用 `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64` 指定 Java 21。
 
-#### 11.2.7 ABI 未指定導致連結失敗
+#### 11.2.7 健康監視器競爭條件
+
+在模式切換時（例如從 ProcessBuilder 切換到 JNI native），原來的健康監視線程 (`monitorProcessHealth` 或 `monitorNativeHealth`）可能在新引擎啟動後仍在運行，檢查錯誤的進程狀誤將 `engineStatus` 錯誤設為 `crashed`。修正：在各健康監視器迴圈開頭立即檢查 `configUseNative` 與監視器類型是否匹配，不匹配則直接 `break` 退出迴圈，避免產生假警報。
+
+#### 11.2.8 stopEngine() 未殺死 ProcessBuilder
+
+在模式切換時若 `configUseNative` 已設為 true，`stopEngine()` 只會執行 native 分支，導致舊的 `osrm-routed` 進程殘留佔用 port 5747；現改為無論何種模式均嘗試殺死 `engineProcess` 再停止 native engine
+
+#### 11.2.9 binaryPath 為 null
+
+當從 native 模式切換回 ProcessBuilder 時，因 `onCreate()` 中僅在 `!configUseNative` 時解析 binary 路徑，導致切換回去後 `binaryPath` 為 null；現改為在 `onCreate()` 無條件解析，並在 `updateConfig()` 重啟/啟動引擎前再次確認
+
+#### 11.2.10 ABI 未指定導致連結失敗
 
 ```
 ld.lld: error: libosrm.a(hint.cpp.o) is incompatible with armelf_linux_eabi

@@ -22,7 +22,7 @@ agent_sign: ['opencode/current_agent']
 #### Changed
 - **`http_server.cpp`**: 全部重寫 — 移除不相容的 `FlatbuffersFormat`/`set_from_query`/`ToJson()`，改用 `json::Object` + `util::json::render()`；civetweb 1.15 callback 改為 1-arg signature，`user_data` 從 `mg_request_info` 取得
 - **`osrm_bridge.cpp`**: 加入 graceful shutdown timeout (5s)、Java exception 拋出、auto-stop-before-restart 保護
-- **`OsrmService.java`**: 拆出 `monitorNativeHealth`/`monitorProcessHealth`，native 模式讀 `/proc/self/status`，`getStatusJson` 新增 `native_running`、`use_native` 欄位
+- **`OsrmService.java`**: 拆出 `monitorNativeHealth`/`monitorProcessHealth`，native 模式讀 `/proc/self/status`，`getStatusJson` 新增 `native_running`、`use_native` 欄位；**修正健康監視器競爭條件**：在各自的迴圈開頭檢查 `configUseNative` 與監視器類型是否匹配，不匹配則立即退出，避免舊監視器錯誤標記新引擎為 crashed
 - **`CMakeLists.txt`**: 加入 fmt 9.1 include path + `format.cc` 原始檔
 - **`build.gradle.kts`**: 啟用 CMake externalNativeBuild，限制 ABI 為 `arm64-v8a`
 
@@ -34,6 +34,8 @@ agent_sign: ['opencode/current_agent']
 - **fmt 符號未定義**: `json_renderer.hpp` 依賴 `<fmt/compile.h>`，需加入 `third_party/fmt-9.1.0/include` 並編譯 `format.cc`
 - **Java 25 與 Gradle 8.9 不相容**: Java 25.0.3 觸發 Gradle 異常錯誤訊息，需使用 Java 21
 - **ABI 未指定**: Gradle 預設 `armeabi-v7a`，與 OSRM 的 `arm64-v8a` 靜態庫不相容；加入 `abiFilters += "arm64-v8a"`
+- **stopEngine() 未殺死 ProcessBuilder**: 在模式切換時若 `configUseNative` 已設為 true，`stopEngine()` 只會執行 native 分支，導致舊的 `osrm-routed` 進程殘留佔用 port 5747；現改為無論何種模式均嘗試殺死 `engineProcess` 再停止 native engine
+- **binaryPath 為 null**: 當從 native 模式切換回 ProcessBuilder 時，因 `onCreate()` 中僅在 `!configUseNative` 時解析 binary 路徑，導致切換回去後 `binaryPath` 為 null；現改為在 `onCreate()` 無條件解析，並在 `updateConfig()` 重啟/啟動引擎前再次確認
 
 #### Technical Details
 - `libosrm_android.so`: 3.4 MB (ARM64, 靜態連結 OSRM + fmt + civetweb)
