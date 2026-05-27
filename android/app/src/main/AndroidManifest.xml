@@ -14,7 +14,8 @@
         android:allowBackup="true"
         android:label="OSRM 離線導航"
         android:supportsRtl="true"
-        android:theme="@style/Theme.OSRM">
+        android:theme="@style/Theme.OSRM"
+        android:usesCleartextTraffic="true">
 
         <activity
             android:name=".MainActivity"

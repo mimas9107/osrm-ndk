@@ -2,21 +2,21 @@
 name:             "SPEC.md"
 description:      "OSRM Android NDK — 技術規格文件"
 created_date:     "2026/05/27 15:00:00"
-modified_date:    "2026/05/27 15:00:00"
-project_version:  "0.2.0"
-document_version: "1.0.0"
+modified_date:    "2026/05/27 16:45:00"
+project_version:  "0.3.0"
+document_version: "1.1.0"
 agent_sign: ['opencode/current_agent']
 ---
 
 # SPEC — 技術規格文件
 
-## OSRM Android NDK — 手機端機車 MLD 圖資編譯
+## OSRM Android NDK — 自含式 APK 路由服務
 
 ---
 
 ## 1. 系統概觀
 
-將 OSRM C++ 路由引擎 (v5.27.1) 透過 Android NDK 交叉編譯為 ARM64 原生程式碼，在手機本地端以 `motorcycle.lua` profile 完成 MLD (Multi-Level Dijkstra) 圖資編譯，並提供完整 OSRM HTTP API。
+將 OSRM C++ 路由引擎 (v5.27.1) 透過 Android NDK 交叉編譯為 ARM64 原生程式碼，以 Android APK 形式在手機端運行自含式路由服務，並透過 WebView 儀表板進行監控與管理。
 
 | 屬性 | 規格 |
 |------|------|
@@ -26,7 +26,27 @@ agent_sign: ['opencode/current_agent']
 | 路權設定 | 機車專屬 (`motorcycle.lua`) |
 | 圖資來源 | OpenStreetMap Taiwan (geofabrik.de) |
 | HTTP API | 標準 OSRM v5 API |
-| 部署方式 | `adb push` → 手機端編譯 → 啟動 |
+| 部署方式 | APK 安裝 (jniLibs 自動展開) |
+| 監控 API | `127.0.0.1:5001` (同源儀表板) |
+| 儀表板 | WebView + HTML/CSS/JS (自含式) |
+
+### 1.1 架構圖
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Android App (com.osrm.android)                         │
+│                                                         │
+│  ┌──────────────┐   ┌──────────────────────────────┐   │
+│  │  MainActivity │   │  OsrmService (Foreground)    │   │
+│  │  ┌──────────┐ │   │  ┌────────┐ ┌─────────────┐ │   │
+│  │  │ WebView  │ │   │  │OSRM    │ │MonitorServer│ │   │
+│  │  │dashboard │◄───┼──┤Engine  │ │ :5001        │ │   │
+│  │  │(同源 XHR) │ │   │  │:5747   │ │  JSON API    │ │   │
+│  │  └──────────┘ │   │  └────────┘ │  + 靜態檔案  │ │   │
+│  └──────────────┘   │              └─────────────┘ │   │
+│                     └──────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+```
 
 ---
 

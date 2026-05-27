@@ -1,10 +1,10 @@
 ---
 name:             "MEMOIR.md"
-description:      "OSRM Android NDK — 手機端機車 MLD 圖資編譯完整工程回顧"
+description:      "OSRM Android NDK — 自含式 APK 路由服務完整工程回顧"
 created_date:     "2026/05/27 15:00:00"
-modified_date:    "2026/05/27 16:00:00"
-project_version:  "0.2.0"
-document_version: "1.1.0"
+modified_date:    "2026/05/27 16:45:00"
+project_version:  "0.3.0"
+document_version: "1.2.0"
 agent_sign: ['opencode/current_agent']
 ---
 
@@ -538,3 +538,75 @@ Latency:  21.3ms
 2. **`ipairs` 防衛**：在 `WayHandlers.run()` 中加入 nil handler 檢查並拋出明確錯誤
 3. **Memory profiling**：記錄 extract/partition/customize 的記憶體使用，建立手機紅線指標
 4. **USB tether fallback**：當 `adb` 不可用時，可透過 HTTP 上傳 PBF 到手機端 web service 觸發編譯
+
+---
+
+## 10. Phase 1 Simplified — 自含式 APK + 儀表板
+
+### 10.1 問題：二進位部署路徑
+
+OSRM 的二進位 (`osrm-routed`) 需打包進 APK，但 Android 的 .so 部署有兩種機制：
+
+| 機制 | 路徑 | 可執行？ | 問題 |
+|------|------|---------|------|
+| jniLibs (AGP) | `<nativeLibDir>/libosrm_routed.so` | ✅ | AGP 8.2+ 預設不展開未載入的 .so |
+| assets (自解) | `getFilesDir()/osrm-routed` | ❌ SELinux | `files/` 子目錄為 noexec |
+
+**嘗試歷程：**
+
+1. **jniLibs** → AGP 在 debug build 不展開 .so（`useLegacyPackaging=true` 無效）
+2. **assets 解壓到 `files/`** → SELinux noexec → `error=13, Permission denied`
+3. **assets 解壓到 app 根目錄** → 手動測試 `/data/user/0/com.osrm.android/libosrm_routed.so` 可執行 → 但 PackageManager 已劫持 `.so` 副檔名
+4. **最終方案**: 二進位移到 `jniLibs/arm64-v8a/libosrm_routed.so` → PackageManager 在安裝時展開到 `<nativeLibDir>/libosrm_routed.so`
+
+### 10.2 問題：WebView CORS
+
+WebView 從 `file:///android_asset/www/dashboard.html` 載入內容，XHR 到 `http://127.0.0.1:5001/status` 被瀏覽器安全策略阻擋（`Access to XMLHttpRequest at 'http://127.0.0.1:5001/status' from origin 'null' has been blocked by CORS policy`）。
+
+三種解法考量：
+
+| 解法 | 複雜度 | 可靠性 |
+|------|--------|--------|
+| `setAllowUniversalAccessFromFileURLs(true)` | 低 | Android 29+ 可能不支援 |
+| `usesCleartextTraffic="true"` | 低 | 只解 HTTPS 限制，不解 file→http 跨域 |
+| **MonitorServer 同源提供靜態檔案** | 中 | 最可靠，同源無 CORS |
+
+選擇第三種：MonitorServer 讀取 AssetManager 中的 dashboard.html/css/js，WebView 載入 `http://127.0.0.1:5001/`。
+
+### 10.3 問題：按鈕無反應
+
+兩個獨立問題：
+
+1. **`showMsg` 未定義**: `doStart()`、`doStop()`、`doRestart()` 呼叫的 `showMsg()` 不曾定義 → ReferenceError
+2. **JS 自動重啟迴圈**: `updateStatus()` 尾端有 `if (status === 'stopped' && auto_start) doStart()` → 使用者按停止後 3 秒 polling 看到 `stopped` 又自動啟動
+
+修正：
+- 加入 `showMsg()` 函數
+- 改用一次性 `maybeAutoStart()`，首次載入只觸發一次
+
+### 10.4 時序競爭：MonitorServer 重複綁定
+
+`onStartCommand()` 在 Activity 重建（螢幕旋轉等）時被再次呼叫，`startMonitorServer()` 嘗試重新綁定 port 5001 造成 `EADDRINUSE`。修正：加入 `if (monitorServer == null || !monitorServer.isRunning())` 保護。
+
+### 10.5 時序競爭：stopEngine → auto-restart
+
+`stopEngine()` 和 `readEngineOutput()` 共享 `synchronized(this)` 鎖。`stopEngine()` 設定 `engineStopRequested=true` 並摧毀 process，`readEngineOutput()` 偵測到 process 退出後檢查此旗標。修正：在 `readEngineOutput()` 的 auto-restart 邏輯中加入二次 `synchronized(this)` 驗證 `!engineStopRequested`。
+
+### 10.6 關鍵教訓
+
+1. **AGP .so 行為**: AGP 8.2+ 在 debug build 不會展開 jniLibs（透過 `nativeLibraryDir` 可讀寫但檔案由 PackageManager 管理）。若需自訂 .so 部署路徑，需使用 `packaging.jniLibs.useLegacyPackaging = true`（API 23+ 有效）或直接從 assets 解壓。
+2. **SELinux 上下文**: `getFilesDir()` 回傳的 `files/` 目錄有 `u:object_r:app_data_file:s0` context，標記為 noexec。app 資料根目錄則允許執行。
+3. **WebView 跨域**: `file://` origin 的 XHR 到 `http://` 被視為跨域請求，`Access-Control-Allow-Origin: *` 無效。解決方案：同源提供資源。
+4. **ForegroundService 生命週期**: `startForegroundService()` 是非同步的，`onStartCommand()` 在 `onCreate()` 之後執行。WebView 載入需要延遲或重試機制。
+5. **JS polling 副作用**: 輪詢邏輯中的條件判斷（如自動啟動）若放在 `updateStatus()` 中，每輪都會觸發。直接副作用應只觸發一次。
+
+### 10.7 最終結果
+
+| 量測 | 數值 |
+|------|------|
+| APK 大小 | 4.3 MB |
+| 首次啟動至監控 API 就緒 | ~1.5s |
+| 引擎啟動至路由就緒 | ~1s |
+| 路由回應 (9.3km) | ~12ms |
+| 儀表板輪詢間隔 | 3s |
+| WebView 重試上限 | 20 次 (每次 1s) |

@@ -2,17 +2,17 @@
 name:          "README.md"
 description:   "OSRM Android NDK — 將 OSRM v5.27.1 路由引擎交叉編譯至 Android ARM64，手機端編譯機車 (motorcycle.lua) MLD 圖資"
 created_date:  "2026/05/27 12:00:00"
-modified_date: "2026/05/27 15:00:00"
-project_version: "0.2.0"
-document_version: "1.1.0"
+modified_date: "2026/05/27 16:15:00"
+project_version: "0.3.0"
+document_version: "1.2.0"
 agent_sign: ['opencode/current_agent']
 ---
 
 # OSRM Android NDK 專案
 
-將 OSRM C++ 路由引擎交叉編譯至 Android ARM64，並在手機本地端以 `motorcycle.lua` profile 完成 MLD 圖資編譯與路由服務。
+將 OSRM C++ 路由引擎交叉編譯至 Android ARM64，以 APK 形式在手機端運行自含式路由服務，並透過 WebView 儀表板進行監控與管理。
 
-## 里程碑：v0.2.0 — 手機端機車 MLD 圖資編譯
+## 里程碑：v0.3.0 — 自含式 Android APK 路由服務
 
 ```
 [VOG-L29] => osrm-extract --profile motorcycle.lua => 3,998,477 edges

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>OSRM 儀表板</title>
+<link rel="stylesheet" href="dashboard.css">
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>OSRM 離線導航</h1>
+    <span class="badge" id="statusBadge">-</span>
+  </header>
+
+  <main>
+    <section class="card" id="statusCard">
+      <h2>狀態</h2>
+      <div class="grid-2">
+        <div><label>PID</label><span id="pid">-</span></div>
+        <div><label>運行時間</label><span id="uptime">-</span></div>
+        <div><label>記憶體</label><span id="memory">-</span></div>
+        <div><label>重啟次數</label><span id="restartCount">0</span></div>
+      </div>
+      <div class="osrm-health" id="healthRow" style="display:none">
+        <span class="dot" id="healthDot"></span>
+        <span id="healthText">OSRM API 健康檢查</span>
+      </div>
+    </section>
+
+    <section class="card" id="configCard">
+      <h2>
+        <span>設定</span>
+        <button class="btn-sm" id="toggleConfigBtn" onclick="toggleConfig()">展開</button>
+      </h2>
+      <div id="configBody" style="display:none">
+        <div class="form-row">
+          <label>IP 綁定</label>
+          <input type="text" id="cfgIp" value="127.0.0.1">
+        </div>
+        <div class="form-row">
+          <label>Port</label>
+          <input type="number" id="cfgPort" value="5747">
+        </div>
+        <div class="form-row">
+          <label>圖資目錄</label>
+          <input type="text" id="cfgDataDir">
+        </div>
+        <div class="form-row">
+          <label>自動啟動</label>
+          <input type="checkbox" id="cfgAutoStart" checked>
+        </div>
+        <div class="form-row">
+          <label>Crash 自動重啟</label>
+          <input type="checkbox" id="cfgAutoRestart" checked>
+        </div>
+        <button class="btn" onclick="saveConfig()">儲存並重啟</button>
+        <span id="configMsg" class="msg"></span>
+      </div>
+    </section>
+
+    <section class="card" id="logCard">
+      <h2>
+        <span>Log</span>
+        <button class="btn-sm" id="clearLogBtn" onclick="document.getElementById('logBody').innerHTML=''">清除</button>
+      </h2>
+      <pre id="logBody"></pre>
+    </section>
+  </main>
+
+  <footer>
+    <button class="btn btn-start" id="btnStart" onclick="doStart()">▶ 啟動</button>
+    <button class="btn btn-stop" id="btnStop" onclick="doStop()">⏹ 停止</button>
+    <button class="btn btn-restart" id="btnRestart" onclick="doRestart()">⟳ 重啟</button>
+  </footer>
+</div>
+<script src="dashboard.js"></script>
+</body>
+</html>

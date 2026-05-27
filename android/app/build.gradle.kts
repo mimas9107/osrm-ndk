@@ -4,18 +4,23 @@ plugins {
 
 android {
     namespace = "com.osrm.android"
-    compileSdk = 34
+    compileSdk = 36
+    ndkVersion = "30.0.14904198"
 
     defaultConfig {
         applicationId = "com.osrm.android"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 36
         versionCode = 1
-        versionName = "0.1.0"
-        ndk { abiFilters += "arm64-v8a" }
+        versionName = "0.3.0"
     }
 
     buildTypes {
+        debug {
+            // Extract native libs to filesystem (needed for ProcessBuilder)
+            isMinifyEnabled = false
+            packaging { jniLibs { useLegacyPackaging = true } }
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(
@@ -25,11 +30,20 @@ android {
         }
     }
 
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/jni/CMakeLists.txt")
-            version = "3.22.1"
-        }
+    // JNI .so build (Phase 1 Standard): uncomment after C++ code is updated for v5.27 API
+    // externalNativeBuild {
+    //     cmake {
+    //         path = file("src/main/jni/CMakeLists.txt")
+    //         version = "3.22.1"
+    //     }
+    // }
+}
+
+configurations.all {
+    resolutionStrategy {
+        force("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
+        force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.24")
+        force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.24")
     }
 }
 
