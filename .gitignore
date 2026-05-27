@@ -1,0 +1,48 @@
+# ── Build artifacts (NDK cross-compilation) ──────────────────────────
+build_android/
+deps/
+*.o
+*.a
+*.so
+
+# ── OSRM binary data (generated, too large for git) ─────────────────
+osrm_data_v5271/
+*.osm.pbf
+*.osrm
+*.osrm.*
+
+# ── External symlink: myosm → ../myosm ──────────────────────────────
+# Setup: ln -s ../myosm myosm  (see README.md)
+myosm
+
+# ── Android Studio / Gradle ─────────────────────────────────────────
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.iml
+*.apk
+*.aab
+*.dex
+*.class
+*.ap_
+
+# ── IDE / editor ────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── System ──────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.bak
+
+# ── Logs & reports ──────────────────────────────────────────────────
+*.log
+reports/
+
+# ── Misc temp ───────────────────────────────────────────────────────
+*.tmp
+*.cache

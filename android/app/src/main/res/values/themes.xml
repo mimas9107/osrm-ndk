@@ -1,0 +1,6 @@
+<resources>
+    <style name="Theme.OSRM" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:statusBarColor">#FF1a1a2e</item>
+        <item name="android:navigationBarColor">#FF1a1a2e</item>
+    </style>
+</resources>
