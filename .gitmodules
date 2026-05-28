@@ -1,3 +1,0 @@
-[submodule "deps/osrm-backend"]
-	path = deps/osrm-backend
-	url = https://github.com

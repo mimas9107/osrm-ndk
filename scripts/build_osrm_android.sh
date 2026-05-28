@@ -80,6 +80,7 @@ cmake_android() {
     -DANDROID_PIE=ON \
     -DBUILD_SHARED_LIBS=OFF \
     -DBUILD_TESTING=OFF \
+    -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--undefined-version"
     "$@"
   cmake --build "$bld" -j "$JOBS"
   cmake --install "$bld"

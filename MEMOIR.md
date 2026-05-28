@@ -2,9 +2,9 @@
 name:             "MEMOIR.md"
 description:      "OSRM Android NDK — 自含式 APK 路由服務完整工程回顧"
 created_date:     "2026/05/27 15:00:00"
-modified_date:    "2026/05/27 17:20:00"
-project_version:  "0.4.0"
-document_version: "1.3.0"
+modified_date:    "2026/05/28 22:34:00"
+project_version:  "0.4.5"
+document_version: "1.4.0"
 agent_sign: ['opencode/current_agent']
 ---
 
@@ -761,3 +761,22 @@ APK 總大小: 6.6 MB
 | 路由回應 (9.3km) | ~12ms |
 | 儀表板輪詢間隔 | 3s |
 | WebView 重試上限 | 20 次 (每次 1s) |
+
+## 🧩 2026/05/28 專題：現代化 NDK r30 / Clang 21 總通車與「影子安全屋」決策錄
+
+### 1. 斷點除錯的世界觀：完全當作指令存在、一線全手工裸奔
+在排查 OSRM 82% 熔斷的過程中，我們果斷拋棄了隱藏過多 AI Agent 干擾與快取黑盒子的自動化大腳本，全面切換為「單執行緒慢動作排錯」。單執行緒能讓我們在第一個警告或錯誤發生的那一秒立刻精準抓人，成功清除了所有阻礙點名的幽靈快取。
+
+### 2. 空實作 Stub 與建構子簽名咬合戰術
+Android Bionic 庫先天殘疾、完全缺乏 System V 共享記憶體（`shmget`/`shmctl`）函數。
+* **決策**：我們放棄了大範圍的 `#ifndef ANDROID` 物理切除，因為這會破壞 `osrm::storage::SharedMemory` 與 `SharedMemoryAllocator` 的型別定義，引發 20 個連鎖命名空間（`api` 誤認成 `abi`）的大錯位。
+* **落實**：改採「外殼具存、內部掏空」的標準 Stub 技術。依據 Clang 21 的 `out-of-line` 提示，100% 字面咬合官方的 `const` 與 `std::vector<storage::SharedRegionRegister::ShmKey>` 參數簽名，完美閉合虛擬表（vtable）。
+
+### 3. 位置無關裝甲 (-fPIC) 與連結器寬容旗標
+JNI Bridge 融合大會師時，連結器 LLD 拋出致命的 `R_AARCH64_ADR_PREL_PG_HI21` 暫存器重定位地址錯誤。
+* **根因**：第一階段編譯 Boost 1.83.0 全家桶（`libboost_filesystem.a` 等）時，遗漏了位置無關代碼旗標。
+* **落實**：回到 `b2` 戰場，在 `cxxflags` 與 `linkflags` 最前端硬性注入 `-fPIC` 進行全庫重新搥打。同時在 JNI 最外層追加 `-Wl,--allow-multiple-definition` 免死金牌，放行 Boost Phoenix 的全域變數多重定義審查，一擊必殺重定位代溝。
+
+### 4. 終極影子安全屋（Shadow Overlay）防線
+為了對抗 `fetch_deps.sh` 隨時會去遠端官方倉庫拉取死碼原始碼並發動 `git checkout -f` 的「一鍵清洗暴政」，我們建立了 **`osrm-backend-plus/`** 影子安全屋。
+* **架構閉環**：主專案 100% 獨立版控這 5 大正確版 C++ 補丁，並在 `fetch_deps.sh` 腳本最末端強行銲上 `cp -rf` 物理注入指令。不論官方怎麼 reset 覆蓋，完工後一微秒內自動將正確骨架重新灌回硬碟，完美達成了專案「自我修復（Self-Healing）」的最高自動化世界觀！

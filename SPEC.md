@@ -2,9 +2,9 @@
 name:             "SPEC.md"
 description:      "OSRM Android NDK — 技術規格文件"
 created_date:     "2026/05/27 15:00:00"
-modified_date:    "2026/05/27 16:45:00"
-project_version:  "0.3.0"
-document_version: "1.1.0"
+modified_date:    "2026/05/28 22:30:00"
+project_version:  "0.4.5"
+document_version: "1.2.0"
 agent_sign: ['opencode/current_agent']
 ---
 
