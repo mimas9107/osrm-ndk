@@ -103,3 +103,19 @@ fi
 
 echo ""
 echo "=== All dependencies fetched ==="
+
+# =====================================================================
+# 🔥 🔥 影子大合流戰略：強行將安全屋 (osrm-backend-plus) 的正確骨架注入硬碟！
+# =====================================================================
+echo "=== 步驟 [Extra 2]: 發動影子覆蓋戰略！強制注入安全屋骨架 ==="
+
+# 取得腳本當前的專案根目錄路徑
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# 物理將安全屋內的正確檔案，一字不差地強行覆蓋回剛剛被拉下來的 deps/osrm-backend 中
+cp -rf "$PROJECT_ROOT/osrm-backend-plus/"* "$PROJECT_ROOT/deps/osrm-backend/"
+
+# 一鍵物理切除 rapidjson 內部非法的 const 賦值盲腸 (第 319 行)
+sed -i '319s/s = rhs.s; length = rhs.length;/s = rhs.s;/g' "$PROJECT_ROOT/deps/osrm-backend/third_party/rapidjson/include/rapidjson/document.h"
+
+echo "=== 🎉 🎉 恭喜！影子合流成功！新筆電 OSRM 原始碼已自動物理矯正完畢！ ==="
