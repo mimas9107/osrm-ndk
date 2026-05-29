@@ -7,10 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w -Wno-error -Wno-deprecated-declarations -Wno-error=deprecated-declarations")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -w -Wno-error")
 
-set(OSRM_PREFIX "/home/mimas/projects/osrm-ndk/build_android/install")
-set(OSRM_SOURCE_DIR "/home/mimas/projects/osrm-ndk/deps/osrm-backend")
+get_filename_component(PROJECT_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../../.." ABSOLUTE)
+set(OSRM_PREFIX "${PROJECT_ROOT}/build_android/install")
+set(OSRM_SOURCE_DIR "${PROJECT_ROOT}/deps/osrm-backend")
 
-# 1. 核心大軍：精準硬編碼指派 OSRM 官方產出的 8 大核心庫（位於 install/lib/）
+# 1. 核心大軍：精準編碼指派 OSRM 官方產出的 8 大核心庫（位於 install/lib/）
 set(OSRM_CORE_LIBS
   "${OSRM_PREFIX}/lib/libosrm.a"
   "${OSRM_PREFIX}/lib/libosrm_guidance.a"
@@ -22,7 +23,7 @@ set(OSRM_CORE_LIBS
   "${OSRM_PREFIX}/lib/libosrm_contract.a"
 )
 
-# 2. 依賴大軍：精準硬編碼指派你今天打通的 8 大系統庫（位於 install/android-24/arm64-v8a/lib/）
+# 2. 依賴大軍：精準編碼指派你今天打通的 8 大系統庫（位於 install/android-24/arm64-v8a/lib/）
 set(DEPS_LIB_DIR "${OSRM_PREFIX}/android-24/arm64-v8a/lib")
 set(DEPS_LIBS
   "${DEPS_LIB_DIR}/libboost_program_options.a"
@@ -40,7 +41,7 @@ set(DEPS_LIBS
   "${DEPS_LIB_DIR}/libz.a"
   "${DEPS_LIB_DIR}/libbz2.a"
   "${DEPS_LIB_DIR}/libexpat.a"
-  "${DEPS_LIB_DIR}/libxml2.so"
+  "${DEPS_LIB_DIR}/libxml2.a"
 )
 
 # 3. 原始碼清單
@@ -54,8 +55,8 @@ add_library(osrm_android SHARED ${SOURCES})
 
 # 4. 標頭檔搜尋路徑閉合
 target_include_directories(osrm_android PRIVATE
-  /home/mimas/projects/osrm-ndk/deps/osrm-backend/third_party/variant/include
-  /home/mimas/projects/osrm-ndk/deps/osrm-backend/third_party/flatbuffers/include
+  "${OSRM_SOURCE_DIR}/third_party/variant/include"
+  "${OSRM_SOURCE_DIR}/third_party/flatbuffers/include"
   "${OSRM_PREFIX}/include"
   "${OSRM_PREFIX}/android-24/arm64-v8a/include"
   "${OSRM_SOURCE_DIR}/include"

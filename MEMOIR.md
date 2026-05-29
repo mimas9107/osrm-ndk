@@ -2,10 +2,10 @@
 name:             "MEMOIR.md"
 description:      "OSRM Android NDK — 自含式 APK 路由服務完整工程回顧"
 created_date:     "2026/05/27 15:00:00"
-modified_date:    "2026/05/28 22:34:00"
-project_version:  "0.4.5"
-document_version: "1.4.0"
-agent_sign: ['opencode/current_agent']
+modified_date:    "2026/05/29 11:10:00"
+project_version:  "0.4.6"
+document_version: "1.4.1"
+agent_sign: ['opencode/current_agent', 'antigravity/current_agent']
 ---
 
 # MEMOIR — 完整工程回顧
@@ -779,4 +779,21 @@ JNI Bridge 融合大會師時，連結器 LLD 拋出致命的 `R_AARCH64_ADR_PRE
 
 ### 4. 終極影子安全屋（Shadow Overlay）防線
 為了對抗 `fetch_deps.sh` 隨時會去遠端官方倉庫拉取死碼原始碼並發動 `git checkout -f` 的「一鍵清洗暴政」，我們建立了 **`osrm-backend-plus/`** 影子安全屋。
-* **架構閉環**：主專案 100% 獨立版控這 5 大正確版 C++ 補丁，並在 `fetch_deps.sh` 腳本最末端強行銲上 `cp -rf` 物理注入指令。不論官方怎麼 reset 覆蓋，完工後一微秒內自動將正確骨架重新灌回硬碟，完美達成了專案「自我修復（Self-Healing）」的最高自動化世界觀！
+* **架架構閉環**：主專案 100% 獨立版控這 5 大正確版 C++ 補丁，並在 `fetch_deps.sh` 腳本最末端強行銲上 `cp -rf` 物理注入指令。不論官方怎麼 reset 覆蓋，完工後一微秒內自動將正確骨架重新灌回硬碟，完美達成了專案「自我修復（Self-Healing）」的最高自動化世界觀！
+
+## 🧩 2026/05/29 專題：模組化建構細節矯正、Libxml2 靜態化與總驗證錄
+
+### 1. Libxml2 靜態化裝甲與 LibLZMA 交叉編譯屏蔽
+在重審視模組化建構腳本的過程中，發現 `04_build_libxml2.sh` 在新電腦上執行時，由於 CMake 偵測系統環境會預設去尋找 `LibLZMA`，而在交叉編譯的 Android ARM64 環境中並沒有 lzma 套件，導致 `FindLibLZMA` 直接拋出致命錯誤並中斷，使 `libxml2.a` 從未被成功編譯安裝。
+* **解法與決策**：在 `04_build_libxml2.sh` 執行 CMake 時，顯式加入 `-DLIBXML2_WITH_LZMA=OFF` 旗標以屏蔽 LibLZMA 依賴。這使得 `libxml2.a` 靜態庫得以成功編譯，並安裝至 `$PREFIX/lib/libxml2.a`。
+
+### 2. JNI 連結點的物理矯正 (Dynamic to Static Library Correction)
+原本的 JNI 橋接層 `CMakeLists.txt` 中，將 `libxml2` 參照點名為 `libxml2.so`。然而在第一階段的模組化設計中，我們在編譯時使用了 `-DBUILD_SHARED_LIBS=OFF`（這是靜態連結的核心原則），這使得編譯產物是靜態庫 `libxml2.a`，而不存在 `libxml2.so`。
+* **解法與決策**：物理將 `android/app/src/main/jni/CMakeLists.txt` 中的連結指定由 `libxml2.so` 修正為靜態庫 `libxml2.a`。這使得 CMake 連結器在拼裝 `libosrm_android.so` 時能夠 100% 正確導入靜態符號，杜絕了執行期遺漏庫檔案或動態載入的風險。
+
+### 3. JDK 相容性鎖定與 APK 總驗證
+在進行最終 APK 包裝（`gradlew assembleDebug`）時，系統預設的 JDK 25.0.3 (Debian 13) 觸發了 Gradle 8.9 的不相容異常。
+* **解法與決策**：在 Gradle 建構命令前，強制指定專案專屬的 `JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64` 環境變數。這使得 Gradle daemon 得以順利運作，成功連結並產出了包含整個 OSRM 引擎與 offline backend 的自含式 `app-debug.apk`。
+* **最終 APK 狀態**：
+  * **APK 總大小**：6.7 MB
+  * **驗證結果**：二進位打包（JNI `libosrm_android.so` 與 `osrm-routed` 靜態 strip 完畢的 2.8 MB 執行檔）完美合流，100% 閉合運作，達成了模組化建構的高再現性工程閉環。

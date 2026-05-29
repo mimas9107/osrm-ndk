@@ -2,13 +2,25 @@
 name:          "CHANGELOG.md"
 description:   "OSRM Android NDK 專案變更記錄，為版本號的單一事實來源 (Source of Truth)"
 created_date:  "2026/05/27 12:00:00"
-modified_date: "2026/05/27 17:20:00"
-project_version: "0.4.5"
-document_version: "1.3.0"
-agent_sign: ['opencode/current_agent']
+modified_date: "2026/05/29 11:10:00"
+project_version: "0.4.6"
+document_version: "1.4.0"
+agent_sign: ['opencode/current_agent', 'antigravity/current_agent']
 ---
 
 # CHANGELOG
+## 0.4.6 — 2026/05/29
+
+### Phase 1 Refined — 模組化建構系統細節矯正與總驗證 🚀
+
+#### Added
+- **LibLZMA 交叉編譯屏蔽**: 在 `04_build_libxml2.sh` 中顯式加入 `-DLIBXML2_WITH_LZMA=OFF` 旗標，成功排除 LibLZMA 缺失引發的 CMake 編譯錯誤，使 `libxml2.a` 靜態庫得以成功編譯產出。
+
+#### Changed
+- **JNI 連結庫物理矯正**: 修改 `android/app/src/main/jni/CMakeLists.txt` 中 libxml2 的連結方式，將動態庫參照 `libxml2.so` 修正為 statically compiled 靜態庫 `libxml2.a`，實現 100% 靜態閉合熔煉。
+- **Oversized APK 物理壓縮**: 透過 Gradle `gradlew assembleDebug` 自動連結最新的 `libxml2.a` 與 `osrm` 核心庫，產出體積縮小且功能完備的 6.7 MB `app-debug.apk` 離線導航應用。
+- **JDK 相容性環境指定**: 強制於 Gradle 編譯期鎖定相容的 JDK 21 執行環境，徹底解決 Debian 13/Java 25 與 Gradle 8.9 的不相容異常。
+
 ## 0.4.5 — 2026/05/28
 
 ### Phase 1 Modernized — 現代 NDK r30 / Clang 21 總通車與自我修復架構 🏆

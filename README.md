@@ -2,10 +2,10 @@
 name:          "README.md"
 description:   "OSRM Android NDK — 將 OSRM v5.27.1 路由引擎交叉編譯至 Android ARM64，手機端編譯機車 (motorcycle.lua) MLD 圖資"
 created_date:  "2026/05/27 12:00:00"
-modified_date: "2026/05/28 22:15:00"
-project_version: "0.4.5"
-document_version: "1.4.0"
-agent_sign: ['opencode/current_agent']
+modified_date: "2026/05/29 11:10:00"
+project_version: "0.4.6"
+document_version: "1.4.1"
+agent_sign: ['opencode/current_agent', 'antigravity/current_agent']
 ---
 
 ## 🧱 物理修復：100% 骨架對齊的全新 README.md
