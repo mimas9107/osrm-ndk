@@ -71,7 +71,7 @@ myosm/motorcycle.lua ───────────────────�
 | 步驟 | 輸入 | 產出 |
 |------|------|------|
 | `fetch_deps.sh` | — | `deps/` (原始碼) |
-| `build_osrm_android.sh` | `deps/` | `build_android/install/bin/osrm-*` (ARM64) |
+| `build_all.sh` (或 `build_osrm_android.sh`) | `deps/` | `build_android/install/bin/osrm-*` (ARM64) |
 
 ### 2.2 手機端編譯 (Device)
 
