@@ -32,11 +32,19 @@ public class MainActivity extends AppCompatActivity {
 
         WebSettings ws = webView.getSettings();
         ws.setJavaScriptEnabled(true);
+        ws.setGeolocationEnabled(true);
         ws.setDomStorageEnabled(true);
         ws.setCacheMode(WebSettings.LOAD_NO_CACHE);
         ws.setAllowFileAccess(true);
         ws.setAllowContentAccess(true);
 
+        webView.setWebChromeClient(new android.webkit.WebChromeClient() {
+            @Override
+            public void onGeolocationPermissionsShowPrompt(String origin, android.webkit.GeolocationPermissions.Callback callback) {
+                // Grant permission automatically for this origin
+                callback.invoke(origin, true, false);
+            }
+        });
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
